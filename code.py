@@ -8,6 +8,8 @@ import wifi
 import socketpool
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 import json
+import sys
+import select
 
 # Configuración de RED
 SSID = "wfrre-Docentes"
@@ -133,6 +135,9 @@ def motor_step(direction):
 # CONFIGURACIÓN JOYSTICK
 joy_x = analogio.AnalogIn(board.GP26)
 joy_y = analogio.AnalogIn(board.GP27)
+joystick_btn = digitalio.DigitalInOut(board.GP28)
+joystick_btn.direction = digitalio.Direction.INPUT
+joystick_btn.pull = digitalio.Pull.UP  # Botón presionado = LOW
 
 def read_joystick(axis):
     return axis.value / 65535 * 100  # valor 0–100%
@@ -142,6 +147,8 @@ pos_x = 400
 pos_y = 10
 TOPE_X_MIN, TOPE_X_MAX = 0, 800
 TOPE_Y_MIN, TOPE_Y_MAX = 0, 20
+modo_config = False
+input_buffer = ""
 
 # VARIABLES DE PARPADEO
 last_blink_time = 0
@@ -161,6 +168,40 @@ print("Sistema de grúa iniciado.")
 set_led_color(0, 1, 0)
 
 while True:
+
+    # MODO CONFIGURACIÓN DE LÍMITES
+    if not joystick_btn.value and not modo_config:
+        modo_config = True
+        set_led_color(1, 1, 0)  # Amarillo
+        print("\n[MODO CONFIGURACIÓN] Ingrese nuevo TOPE_X_MAX (actual: {})".format(TOPE_X_MAX))
+        print("Escriba un número y presione Enter:")
+        input_buffer = ""
+        time.sleep(0.5)
+
+    if modo_config:
+        # Revisar si hay entrada del usuario en el puerto serial
+        if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+            c = sys.stdin.read(1)
+            if c == "\n":  # Enter
+                try:
+                    nuevo_valor = int(input_buffer.strip())
+                    if nuevo_valor <= TOPE_X_MIN:
+                        print("Valor inválido. Debe ser mayor que el mínimo actual ({}).".format(TOPE_X_MIN))
+                    elif pos_x > nuevo_valor:
+                        print("No se puede establecer TOPE_X_MAX en {} porque la posición actual ({}) lo supera.".format(
+                            nuevo_valor, pos_x))
+                    else:
+                        TOPE_X_MAX = nuevo_valor
+                        print("Nuevo TOPE_X_MAX establecido: {}".format(TOPE_X_MAX))
+                except:
+                    print("Entrada no válida. Ingrese un número entero.")
+                modo_config = False
+                set_led_color(0, 1, 0)  # volver a verde
+            else:
+                input_buffer += c
+        # mientras está en modo config, salteamos el resto del loop
+        continue
+
     x_val = read_joystick(joy_x)
     y_val = read_joystick(joy_y)
     moved = False
