@@ -279,7 +279,7 @@ while True:
     # Publicación MQTT
     if wifi_conectado:
         publish()
-        if mqtt_conectado:
-            mqtt_client.loop(0.01) # Permitir la comunicación MQTT
+        #if mqtt_conectado:
+        #    mqtt_client.loop(0.01) # Permitir la comunicación MQTT
 
     time.sleep(0.01)
